@@ -7,10 +7,11 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const rateLimit = require('express-rate-limit');
 const app = express();
+app.set('trust proxy', 1); // For express-rate-limit behind proxy (Render)
 
 // CORS: allow only your frontend domain (replace with your actual domain)
 app.use(cors({
-	origin: process.env.FRONTEND_URL || '*',
+	origin: 'https://crispy-parakeet-1.onrender.com',
 	credentials: true
 }));
 
