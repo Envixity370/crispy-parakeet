@@ -71,6 +71,7 @@ const analyticsSchema = new mongoose.Schema({
 	details: mongoose.Schema.Types.Mixed
 });
 const Analytics = mongoose.model('Analytics', analyticsSchema);
+const os = require('os');
 
 const userSchema = new mongoose.Schema({
 	username: { type: String, required: true, unique: true },
@@ -174,14 +175,42 @@ app.post('/logout', (req, res) => {
 
 app.get('/analytics', async (req, res) => {
 	try {
-		const logins = await Analytics.countDocuments({ type: 'login' });
-		const webhooks = await Analytics.countDocuments({ type: 'webhook' });
-		const activeUsers = await Analytics.distinct('username', { type: 'login', timestamp: { $gte: new Date(Date.now() - 24*60*60*1000) } });
-		res.json({
-			totalLogins: logins,
-			totalWebhooks: webhooks,
-			activeUsers: activeUsers.length
-		});
+			const webhooks = await Analytics.countDocuments({ type: 'webhook' });
+			// Backend metrics
+			const uptime = os.uptime();
+			const totalMem = os.totalmem();
+			const freeMem = os.freemem();
+			const usedMem = totalMem - freeMem;
+			const memUsage = ((usedMem / totalMem) * 100).toFixed(2);
+			const cpus = os.cpus();
+			// Calculate average CPU usage (last minute)
+			let cpuUsage = 0;
+			if (cpus.length > 0) {
+				const cpu = cpus[0];
+				const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+				cpuUsage = ((1 - cpu.times.idle / total) * 100).toFixed(2);
+			}
+			const loadAvg = os.loadavg();
+			// Network stats
+			const net = os.networkInterfaces();
+			let netStats = [];
+			Object.keys(net).forEach(iface => {
+				net[iface].forEach(addr => {
+					if (!addr.internal && addr.family === 'IPv4') {
+						netStats.push({ iface, address: addr.address });
+					}
+				});
+			});
+			res.json({
+					totalWebhooks: webhooks,
+					uptime,
+					memUsage: memUsage + '%',
+					usedMem,
+					totalMem,
+					cpuUsage: cpuUsage + '%',
+					loadAvg,
+					netStats
+			});
 	} catch (err) {
 		res.status(500).json({ message: 'Failed to fetch analytics' });
 	}

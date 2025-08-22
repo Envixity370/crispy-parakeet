@@ -131,7 +131,7 @@
         <p><strong>Active Users (24h):</strong> <span id="activeUsers">...</span></p>
       </div>
     </div>
-    <div id="customizeUI">
+    <div id="customizeUI" style="display:none;">
       <h3>Customize UI</h3>
       <label for="themeColor">Theme Color:</label>
       <input type="color" id="themeColor" value="#3949ab" style="width:48px;height:32px;">
@@ -225,12 +225,14 @@ document.getElementById('loginBtn').addEventListener('click', async function() {
   }
 });
 
-// Show analytics dashboard if user is authenticated
+
+// Show analytics dashboard and customize UI only if user is authenticated
 fetch('/auth-status', { credentials: 'include' })
   .then(res => res.json())
   .then(data => {
     if (data.authenticated) {
       document.getElementById('analyticsDashboard').style.display = 'block';
+      document.getElementById('customizeUI').style.display = 'block';
       fetch('/analytics', { credentials: 'include' })
         .then(res => res.json())
         .then(stats => {
@@ -238,38 +240,41 @@ fetch('/auth-status', { credentials: 'include' })
           document.getElementById('totalWebhooks').textContent = stats.totalWebhooks;
           document.getElementById('activeUsers').textContent = stats.activeUsers;
         });
+      // Customizable UI logic
+      const themeColorInput = document.getElementById('themeColor');
+      const layoutStyleSelect = document.getElementById('layoutStyle');
+      function applyCustomUI() {
+        const color = localStorage.getItem('themeColor') || '#3949ab';
+        themeColorInput.value = color;
+        document.documentElement.style.setProperty('--theme-color', color);
+        // Example: update button backgrounds to use theme color
+        document.querySelectorAll('button').forEach(btn => {
+          btn.style.background = color;
+        });
+        const layout = localStorage.getItem('layoutStyle') || 'centered';
+        layoutStyleSelect.value = layout;
+        const container = document.querySelector('.login-container');
+        if (container) {
+          if (layout === 'wide') {
+            container.style.maxWidth = '100vw';
+            container.style.width = '100%';
+          } else {
+            container.style.maxWidth = '90vw';
+            container.style.width = '';
+          }
+        }
+      }
+      themeColorInput.addEventListener('input', function() {
+        localStorage.setItem('themeColor', themeColorInput.value);
+        applyCustomUI();
+      });
+      layoutStyleSelect.addEventListener('change', function() {
+        localStorage.setItem('layoutStyle', layoutStyleSelect.value);
+        applyCustomUI();
+      });
+      applyCustomUI();
     }
   });
-
-// Customizable UI logic
-const themeColorInput = document.getElementById('themeColor');
-const layoutStyleSelect = document.getElementById('layoutStyle');
-function applyCustomUI() {
-  const color = localStorage.getItem('themeColor') || '#3949ab';
-  document.body.style.setProperty('--theme-color', color);
-  themeColorInput.value = color;
-  const layout = localStorage.getItem('layoutStyle') || 'centered';
-  layoutStyleSelect.value = layout;
-  const container = document.querySelector('.login-container');
-  if (container) {
-    if (layout === 'wide') {
-      container.style.maxWidth = '100vw';
-      container.style.width = '100%';
-    } else {
-      container.style.maxWidth = '90vw';
-      container.style.width = '';
-    }
-  }
-}
-themeColorInput.addEventListener('input', function() {
-  localStorage.setItem('themeColor', themeColorInput.value);
-  applyCustomUI();
-});
-layoutStyleSelect.addEventListener('change', function() {
-  localStorage.setItem('layoutStyle', layoutStyleSelect.value);
-  applyCustomUI();
-});
-applyCustomUI();
 
 // Show profile management if user is authenticated
 fetch('/auth-status', { credentials: 'include' })
