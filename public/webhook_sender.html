@@ -101,10 +101,13 @@
   </style>
 </head>
 <body>
-  <div id="userPopup" style="position:fixed;top:24px;right:140px;z-index:1100;display:flex;align-items:center;background:rgba(30,30,30,0.95);padding:8px 16px;border-radius:16px;box-shadow:0 0 12px #222;">
-    <img id="userAvatar" src="" alt="Avatar" style="width:36px;height:36px;border-radius:50%;margin-right:10px;object-fit:cover;">
-    <span id="userName" style="font-weight:bold;color:#eee;margin-right:10px;">...</span>
-    <span id="settingsIcon" style="cursor:pointer;font-size:22px;color:#eee;">&#9881;</span>
+  <div style="position:sticky;top:18px;right:0;z-index:1100;display:flex;justify-content:flex-end;gap:16px;width:100%;background:transparent;">
+    <div id="userPopup" style="display:flex;align-items:center;background:rgba(30,30,30,0.95);padding:8px 16px;border-radius:16px;box-shadow:0 0 12px #222;">
+      <img id="userAvatar" src="" alt="Avatar" style="width:36px;height:36px;border-radius:50%;margin-right:10px;object-fit:cover;" onerror="this.onerror=null;this.src='https://cdn-icons-png.flaticon.com/512/5968/5968756.png';">
+      <span id="userName" style="font-weight:bold;color:#eee;margin-right:10px;">...</span>
+      <span id="settingsIcon" style="cursor:pointer;font-size:22px;color:#eee;">&#9881;</span>
+    </div>
+    <button id="analyticsBtn" style="padding:10px 22px;background:#3949ab;color:#fff;border:none;border-radius:8px;font-weight:bold;box-shadow:0 0 12px #222;cursor:pointer;">Analytics</button>
   </div>
   <div id="settingsPanel" style="display:none;position:fixed;top:70px;right:140px;z-index:1200;background:#222;padding:24px 18px;border-radius:16px;box-shadow:0 0 24px #111;max-width:260px;text-align:center;">
     <h3 style="color:#23a6d5;margin-bottom:12px;">Settings</h3>
@@ -184,6 +187,14 @@ fetch('/profile', { credentials: 'include' })
       document.getElementById('avatarPreview').src = profile.avatar;
       document.getElementById('avatarPreview').style.display = 'block';
     }
+    // Set color from backend
+    const themeColorInput = document.getElementById('themeColor');
+    const color = profile.color || '#3949ab';
+    themeColorInput.value = color;
+    document.body.style.setProperty('--theme-color', color);
+    document.querySelectorAll('button').forEach(btn => {
+      btn.style.background = color;
+    });
   });
 document.getElementById('settingsIcon').addEventListener('click', () => {
   document.getElementById('settingsPanel').style.display = 'block';
@@ -210,7 +221,7 @@ document.getElementById('profileForm').addEventListener('submit', async function
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ avatar })
+      body: JSON.stringify({ avatar, color })
     });
     document.getElementById('userAvatar').src = avatar || 'https://cdn-icons-png.flaticon.com/512/5968/5968756.png';
     document.body.style.setProperty('--theme-color', color);
@@ -223,19 +234,7 @@ document.getElementById('profileForm').addEventListener('submit', async function
   }
 });
 // Load theme color from localStorage
-const themeColorInput = document.getElementById('themeColor');
-themeColorInput.value = localStorage.getItem('themeColor') || '#3949ab';
-document.body.style.setProperty('--theme-color', themeColorInput.value);
-document.querySelectorAll('button').forEach(btn => {
-  btn.style.background = themeColorInput.value;
-});
-themeColorInput.addEventListener('input', function() {
-  localStorage.setItem('themeColor', themeColorInput.value);
-  document.body.style.setProperty('--theme-color', themeColorInput.value);
-  document.querySelectorAll('button').forEach(btn => {
-    btn.style.background = themeColorInput.value;
-  });
-});
+// Theme color is now loaded and saved per user from backend
 
 // Analytics button logic
 const analyticsBtn = document.getElementById('analyticsBtn');
@@ -243,29 +242,38 @@ const analyticsOverlay = document.getElementById('analyticsOverlay');
 const closeAnalyticsBtn = document.getElementById('closeAnalyticsBtn');
 analyticsBtn.addEventListener('click', () => {
   analyticsOverlay.style.display = 'flex';
-  fetch('/analytics', { credentials: 'include' })
-    .then(res => res.json())
-    .then(stats => {
-      document.getElementById('totalWebhooks').textContent = stats.totalWebhooks;
-      // Uptime in human readable format
-      function formatUptime(seconds) {
-        const d = Math.floor(seconds / (3600*24));
-        const h = Math.floor((seconds % (3600*24)) / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        return `${d}d ${h}h ${m}m ${s}s`;
-      }
-      document.getElementById('uptime').textContent = formatUptime(stats.uptime);
-      document.getElementById('memUsage').textContent = stats.memUsage;
-      document.getElementById('usedMem').textContent = stats.usedMem;
-      document.getElementById('totalMem').textContent = stats.totalMem;
-      document.getElementById('cpuUsage').textContent = stats.cpuUsage;
-      document.getElementById('loadAvg').textContent = stats.loadAvg.map(v => v.toFixed(2)).join(', ');
-      document.getElementById('netStats').textContent = stats.netStats.map(n => `${n.iface}: ${n.address}`).join('; ');
-    });
+  let analyticsInterval;
+  function updateAnalytics() {
+    fetch('/analytics', { credentials: 'include' })
+      .then(res => res.json())
+      .then(stats => {
+        document.getElementById('totalWebhooks').textContent = stats.totalWebhooks;
+        function formatUptime(seconds) {
+          const d = Math.floor(seconds / (3600*24));
+          const h = Math.floor((seconds % (3600*24)) / 3600);
+          const m = Math.floor((seconds % 3600) / 60);
+          const s = Math.floor(seconds % 60);
+          return `${d}d ${h}h ${m}m ${s}s`;
+        }
+        document.getElementById('uptime').textContent = formatUptime(stats.uptime);
+        document.getElementById('memUsage').textContent = stats.memUsage;
+        document.getElementById('usedMem').textContent = stats.usedMem;
+        document.getElementById('totalMem').textContent = stats.totalMem;
+        document.getElementById('cpuUsage').textContent = stats.cpuUsage;
+        document.getElementById('loadAvg').textContent = stats.loadAvg.map(v => v.toFixed(2)).join(', ');
+        document.getElementById('netStats').textContent = stats.netStats.map(n => `${n.iface}: ${n.address}`).join('; ');
+      });
+  }
+  updateAnalytics();
+  analyticsInterval = setInterval(updateAnalytics, 3000);
+  analyticsOverlay._interval = analyticsInterval;
 });
 closeAnalyticsBtn.addEventListener('click', () => {
   analyticsOverlay.style.display = 'none';
+  if (analyticsOverlay._interval) {
+    clearInterval(analyticsOverlay._interval);
+    analyticsOverlay._interval = null;
+  }
 });
 
 fetch('http://localhost:3000/auth-status', { credentials: 'include' })
