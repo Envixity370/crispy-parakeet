@@ -39,14 +39,18 @@ function logError(error, req) {
 
 // Session secret from environment variable
 app.use(session({
-		secret: process.env.SESSION_SECRET || 'your_secret_key',
-		resave: false,
-		saveUninitialized: false,
-		cookie: { secure: false },
-		store: MongoStore.create({
-				mongoUrl: process.env.MONGO_URL || 'mongodb://localhost:27017/sessiondb',
-				ttl: 14 * 24 * 60 * 60 // 14 days
-		})
+	secret: process.env.SESSION_SECRET || 'your_secret_key',
+	resave: false,
+	saveUninitialized: false,
+	cookie: {
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+		httpOnly: true
+	},
+	store: MongoStore.create({
+		mongoUrl: process.env.MONGO_URL || 'mongodb://localhost:27017/sessiondb',
+		ttl: 14 * 24 * 60 * 60 // 14 days
+	})
 }));
 
 // Rate limiting for login endpoint
@@ -56,19 +60,44 @@ const loginLimiter = rateLimit({
 	message: { message: 'Too many login attempts, please try again later.' }
 });
 
-// Hardcoded users (for demo only; use a database for production)
-const users = [
-		{ username: 'Meer', password: require('bcrypt').hashSync('Discord', 10) },
-		{ username: 'Laura', password: require('bcrypt').hashSync('Lennon', 10) },
-		{ username: 'Lua', password: require('bcrypt').hashSync('Aim', 10) }
-		// TODO: Move users to a database for production
+// User model for MongoDB
+const mongoose = require('mongoose');
+mongoose.connect(process.env.MONGO_URL || 'mongodb://localhost:27017/sessiondb', {
+	useNewUrlParser: true,
+	useUnifiedTopology: true
+});
+
+const userSchema = new mongoose.Schema({
+	username: { type: String, required: true, unique: true },
+	password: { type: String, required: true }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// Migrate hardcoded users to MongoDB if not present
+const initialUsers = [
+	{ username: 'Meer', password: 'Discord' },
+	{ username: 'Laura', password: 'Lennon' },
+	{ username: 'Lua', password: 'Aim' }
 ];
+
+async function migrateUsers() {
+	for (const u of initialUsers) {
+		const exists = await User.findOne({ username: u.username });
+		if (!exists) {
+			const passwordHash = await bcrypt.hash(u.password, 10);
+			await User.create({ username: u.username, password: passwordHash });
+			console.log(`Migrated user: ${u.username}`);
+		}
+	}
+}
+migrateUsers().catch(console.error);
 
 
 app.post('/login', loginLimiter, async (req, res) => {
 	const { username, password } = req.body;
 	try {
-		const user = users.find(u => u.username === username);
+		const user = await User.findOne({ username });
 		if (!user) {
 			console.log(`Failed login for username: ${username}`);
 			fs.appendFileSync(path.join(logDirectory, 'access.log'), `[${new Date().toISOString()}] Failed login for username: ${username}\n`);
@@ -102,13 +131,16 @@ app.get('/auth-status', (req, res) => {
 
 
 app.post('/logout', (req, res) => {
-  req.session.destroy(err => {
-    if (err) {
-	logError(err, req);
-	return res.status(500).json({ message: 'Logout failed' });
-    }
-    res.json({ message: 'Logged out successfully' });
-  });
+	const username = req.session.user;
+	req.session.destroy(err => {
+		if (err) {
+			logError(err, req);
+			fs.appendFileSync(path.join(logDirectory, 'access.log'), `[${new Date().toISOString()}] Logout failed for user: ${username}\n`);
+			return res.status(500).json({ message: 'Logout failed' });
+		}
+		fs.appendFileSync(path.join(logDirectory, 'access.log'), `[${new Date().toISOString()}] User logged out: ${username}\n`);
+		res.json({ message: 'Logged out successfully' });
+	});
 });
 
 const PORT = process.env.PORT || 3000;
