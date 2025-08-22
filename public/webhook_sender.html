@@ -103,8 +103,6 @@
 <body>
   <h1>Discord Webhook Sender</h1>
   
-<button id="logoutBtn" style="position:fixed;top:16px;right:16px;z-index:1000;">Logout</button>
-<script>
 document.getElementById('logoutBtn').addEventListener('click', async function() {
   try {
     await fetch('http://localhost:3000/logout', {
@@ -114,9 +112,8 @@ document.getElementById('logoutBtn').addEventListener('click', async function() 
   } catch (error) {
     
   }
-  window.location.href = 'login.html';
+  window.location.href = '/login.html';
 });
-</script>
   <form id="webhookForm">
     <label for="urls">Webhook URLs (comma separated):</label>
     <input type="text" id="urls" name="urls" required>

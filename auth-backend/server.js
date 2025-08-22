@@ -1,4 +1,6 @@
 require('dotenv').config();
+
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
@@ -7,12 +9,11 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const rateLimit = require('express-rate-limit');
 const app = express();
-app.set('trust proxy', 1); // For express-rate-limit behind proxy (Render)
+app.set('trust proxy', 1);
 const fs = require('fs');
 const path = require('path');
 const morgan = require('morgan');
 
-// CORS: allow only your frontend domain (replace with your actual domain)
 app.use(cors({
 	origin: 'https://crispy-parakeet-1.onrender.com',
 	credentials: true
@@ -20,18 +21,15 @@ app.use(cors({
 
 app.use(bodyParser.json());
 
-// Setup log directory and streams
 const logDirectory = path.join(__dirname, 'logs');
 if (!fs.existsSync(logDirectory)) {
 	fs.mkdirSync(logDirectory);
 }
-// Serve static files from public folder
 app.use(express.static(path.join(__dirname, '../public')));
 const accessLogStream = fs.createWriteStream(path.join(logDirectory, 'access.log'), { flags: 'a' });
 app.use(morgan('combined', { stream: accessLogStream }));
 app.use(morgan('dev'));
 
-// Custom error logger
 function logError(error, req) {
 	const errorLogStream = fs.createWriteStream(path.join(logDirectory, 'error.log'), { flags: 'a' });
 	const logEntry = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${error.stack || error}\n`;
@@ -39,7 +37,6 @@ function logError(error, req) {
 	errorLogStream.end();
 }
 
-// Session secret from environment variable
 app.use(session({
 	secret: process.env.SESSION_SECRET || 'your_secret_key',
 	resave: false,
@@ -51,32 +48,63 @@ app.use(session({
 	},
 	store: MongoStore.create({
 		mongoUrl: process.env.MONGO_URL || 'mongodb://localhost:27017/sessiondb',
-		ttl: 14 * 24 * 60 * 60 // 14 days
+		ttl: 14 * 24 * 60 * 60
 	})
 }));
 
-// Rate limiting for login endpoint
 const loginLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutes
-	max: 10, // limit each IP to 10 requests per windowMs
+	windowMs: 15 * 60 * 1000,
+	max: 10,
 	message: { message: 'Too many login attempts, please try again later.' }
 });
 
-// User model for MongoDB
 const mongoose = require('mongoose');
 mongoose.connect(process.env.MONGO_URL || 'mongodb://localhost:27017/sessiondb', {
 	useNewUrlParser: true,
 	useUnifiedTopology: true
 });
 
+const analyticsSchema = new mongoose.Schema({
+	type: String,
+	username: String,
+	timestamp: { type: Date, default: Date.now },
+	details: mongoose.Schema.Types.Mixed
+});
+const Analytics = mongoose.model('Analytics', analyticsSchema);
+
 const userSchema = new mongoose.Schema({
 	username: { type: String, required: true, unique: true },
-	password: { type: String, required: true }
+	password: { type: String, required: true },
+	avatar: { type: String }
+});
+
+app.get('/profile', async (req, res) => {
+	if (!req.session.user) return res.status(401).json({ message: 'Not authenticated' });
+	try {
+		const user = await User.findOne({ username: req.session.user });
+		if (!user) return res.status(404).json({ message: 'User not found' });
+		res.json({ username: user.username, avatar: user.avatar });
+	} catch {
+		res.status(500).json({ message: 'Failed to fetch profile' });
+	}
+});
+
+app.post('/profile', async (req, res) => {
+	if (!req.session.user) return res.status(401).json({ message: 'Not authenticated' });
+	const { username, avatar } = req.body;
+	try {
+		const user = await User.findOne({ username: req.session.user });
+		if (!user) return res.status(404).json({ message: 'User not found' });
+		user.avatar = avatar;
+		await user.save();
+		res.json({ message: 'Profile updated!' });
+	} catch {
+		res.status(500).json({ message: 'Failed to update profile' });
+	}
 });
 
 const User = mongoose.model('User', userSchema);
 
-// Migrate hardcoded users to MongoDB if not present
 const initialUsers = [
 	{ username: 'Meer', password: 'Discord' },
 	{ username: 'Laura', password: 'Lennon' },
@@ -92,10 +120,9 @@ async function migrateUsers() {
 			console.log(`Migrated user: ${u.username}`);
 		}
 	}
-migrateUsers().catch(console.error);
+	migrateUsers().catch(console.error);
 }
 migrateUsers().catch(console.error);
-
 
 app.post('/login', loginLimiter, async (req, res) => {
 	const { username, password } = req.body;
@@ -115,6 +142,7 @@ app.post('/login', loginLimiter, async (req, res) => {
 		req.session.user = username;
 		console.log(`Successful login for username: ${username}`);
 		fs.appendFileSync(path.join(logDirectory, 'access.log'), `[${new Date().toISOString()}] Successful login for username: ${username}\n`);
+		await Analytics.create({ type: 'login', username });
 		res.status(200).json({ message: 'Login successful' });
 	} catch (err) {
 		logError(err, req);
@@ -123,16 +151,49 @@ app.post('/login', loginLimiter, async (req, res) => {
 	}
 });
 
-
 app.get('/auth-status', (req, res) => {
-  if (req.session.user) {
-    res.json({ authenticated: true, user: req.session.user });
-  } else {
-    res.json({ authenticated: false });
-  }
+	if (req.session.user) {
+		res.json({ authenticated: true, user: req.session.user });
+	} else {
+		res.json({ authenticated: false });
+	}
+});
+
+app.post('/logout', (req, res) => {
+	const username = req.session.user;
+	req.session.destroy(err => {
+		if (err) {
+			logError(err, req);
+			fs.appendFileSync(path.join(logDirectory, 'access.log'), `[${new Date().toISOString()}] Logout failed for user: ${username}\n`);
+			return res.status(500).json({ message: 'Logout failed' });
+		}
+		fs.appendFileSync(path.join(logDirectory, 'access.log'), `[${new Date().toISOString()}] User logged out: ${username}\n`);
+		res.json({ message: 'Logged out successfully' });
+	});
+});
+
+app.get('/analytics', async (req, res) => {
+	try {
+		const logins = await Analytics.countDocuments({ type: 'login' });
+		const webhooks = await Analytics.countDocuments({ type: 'webhook' });
+		const activeUsers = await Analytics.distinct('username', { type: 'login', timestamp: { $gte: new Date(Date.now() - 24*60*60*1000) } });
+		res.json({
+			totalLogins: logins,
+			totalWebhooks: webhooks,
+			activeUsers: activeUsers.length
+		});
+	} catch (err) {
+		res.status(500).json({ message: 'Failed to fetch analytics' });
+	}
 });
 
 
+
+app.use((err, req, res, next) => {
+	logError(err, req);
+	console.error('Unhandled error:', err);
+	res.status(500).json({ message: 'Internal server error' });
+});
 app.post('/logout', (req, res) => {
 	const username = req.session.user;
 	req.session.destroy(err => {

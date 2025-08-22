@@ -61,6 +61,52 @@
       transform: scale(0.95) rotate(-2deg);
     }
     img { display: block; margin: 0 auto 18px auto; }
+    #analyticsDashboard {
+      margin-top: 40px;
+      display: none;
+      background: rgba(30,30,30,0.92);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 0 24px 4px #222;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #analyticsDashboard h3 {
+      color: #4caf50;
+    }
+    #analyticsStats {
+      margin-top: 12px;
+      font-size: 0.9rem;
+      color: #ddd;
+    }
+    #customizeUI {
+      margin-top: 32px;
+      background: rgba(30,30,30,0.92);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 0 16px 2px #222;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #customizeUI h3 {
+      color: #23a6d5;
+    }
+    #profileManagement {
+      margin-top: 32px;
+      background: rgba(30,30,30,0.92);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 0 16px 2px #222;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+      display: none;
+    }
+    #profileManagement h3 {
+      color: #e73c7e;
+    }
     @media (max-width: 600px) {
       .login-container { padding: 24px 8px; min-width: 0; }
       h2 { font-size: 1.3rem; }
@@ -76,6 +122,38 @@
       <input type="text" id="username" placeholder="Username">
       <input type="password" id="password" placeholder="Password">
       <button id="loginBtn">Login</button>
+    </div>
+    <div id="analyticsDashboard">
+      <h3>Analytics Dashboard</h3>
+      <div id="analyticsStats">
+        <p><strong>Total Logins:</strong> <span id="totalLogins">...</span></p>
+        <p><strong>Total Webhooks Sent:</strong> <span id="totalWebhooks">...</span></p>
+        <p><strong>Active Users (24h):</strong> <span id="activeUsers">...</span></p>
+      </div>
+    </div>
+    <div id="customizeUI">
+      <h3>Customize UI</h3>
+      <label for="themeColor">Theme Color:</label>
+      <input type="color" id="themeColor" value="#3949ab" style="width:48px;height:32px;">
+      <label for="layoutStyle" style="margin-top:12px;display:block;">Layout Style:</label>
+      <select id="layoutStyle">
+        <option value="centered">Centered</option>
+        <option value="wide">Wide</option>
+      </select>
+    </div>
+    <div id="profileManagement">
+      <h3>Profile Management</h3>
+      <form id="profileForm">
+        <label for="profileUsername">Username:</label>
+        <input type="text" id="profileUsername" name="profileUsername" required>
+        <label for="profileAvatar">Avatar URL:</label>
+        <input type="url" id="profileAvatar" name="profileAvatar">
+        <div style="margin:12px 0;">
+          <img id="avatarPreview" src="" alt="Avatar Preview" style="width:64px;height:64px;border-radius:50%;display:none;">
+        </div>
+        <button type="submit">Update Profile</button>
+      </form>
+      <div id="profileStatus" style="margin-top:12px;color:#4caf50;"></div>
     </div>
     <script>
   
@@ -147,20 +225,103 @@ document.getElementById('loginBtn').addEventListener('click', async function() {
   }
 });
 
-// Add logout logic to clear cookies/session storage
-function logout() {
-  fetch('https://crispy-parakeet-k26g.onrender.com/logout', {
-    method: 'POST',
-    credentials: 'include'
-  }).then(() => {
-    // Clear session storage and cookies (if any)
-    sessionStorage.clear();
-    document.cookie.split(';').forEach(function(c) {
-      document.cookie = c.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
-    });
-    alert('Logged out!');
-    window.location.href = 'index.html';
+// Show analytics dashboard if user is authenticated
+fetch('/auth-status', { credentials: 'include' })
+  .then(res => res.json())
+  .then(data => {
+    if (data.authenticated) {
+      document.getElementById('analyticsDashboard').style.display = 'block';
+      fetch('/analytics', { credentials: 'include' })
+        .then(res => res.json())
+        .then(stats => {
+          document.getElementById('totalLogins').textContent = stats.totalLogins;
+          document.getElementById('totalWebhooks').textContent = stats.totalWebhooks;
+          document.getElementById('activeUsers').textContent = stats.activeUsers;
+        });
+    }
   });
+
+// Customizable UI logic
+const themeColorInput = document.getElementById('themeColor');
+const layoutStyleSelect = document.getElementById('layoutStyle');
+function applyCustomUI() {
+  const color = localStorage.getItem('themeColor') || '#3949ab';
+  document.body.style.setProperty('--theme-color', color);
+  themeColorInput.value = color;
+  const layout = localStorage.getItem('layoutStyle') || 'centered';
+  layoutStyleSelect.value = layout;
+  const container = document.querySelector('.login-container');
+  if (container) {
+    if (layout === 'wide') {
+      container.style.maxWidth = '100vw';
+      container.style.width = '100%';
+    } else {
+      container.style.maxWidth = '90vw';
+      container.style.width = '';
+    }
+  }
 }
+themeColorInput.addEventListener('input', function() {
+  localStorage.setItem('themeColor', themeColorInput.value);
+  applyCustomUI();
+});
+layoutStyleSelect.addEventListener('change', function() {
+  localStorage.setItem('layoutStyle', layoutStyleSelect.value);
+  applyCustomUI();
+});
+applyCustomUI();
+
+// Show profile management if user is authenticated
+fetch('/auth-status', { credentials: 'include' })
+  .then(res => res.json())
+  .then(data => {
+    if (data.authenticated) {
+      document.getElementById('profileManagement').style.display = 'block';
+      // Optionally fetch and fill user profile info here
+      fetch('/profile', { credentials: 'include' })
+        .then(res => res.json())
+        .then(profile => {
+          document.getElementById('profileUsername').value = profile.username || '';
+          document.getElementById('profileAvatar').value = profile.avatar || '';
+          if (profile.avatar) {
+            document.getElementById('avatarPreview').src = profile.avatar;
+            document.getElementById('avatarPreview').style.display = 'block';
+          }
+        });
+    }
+  });
+
+// Avatar preview logic
+const avatarInput = document.getElementById('profileAvatar');
+avatarInput.addEventListener('input', function() {
+  const url = avatarInput.value;
+  const preview = document.getElementById('avatarPreview');
+  if (url) {
+    preview.src = url;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+});
+
+// Profile update logic
+const profileForm = document.getElementById('profileForm');
+profileForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const username = document.getElementById('profileUsername').value;
+  const avatar = document.getElementById('profileAvatar').value;
+  try {
+    const res = await fetch('/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username, avatar })
+    });
+    const result = await res.json();
+    document.getElementById('profileStatus').textContent = result.message || 'Profile updated!';
+  } catch {
+    document.getElementById('profileStatus').textContent = 'Failed to update profile.';
+  }
+});
 </script>
 </html>
