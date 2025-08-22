@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Discord Webhook Sender</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; min-height: 100vh; background: #000 !important; color: #eee; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #232526 0%, #414345 100%);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      color: #eee;
+      --theme-color: #3949ab;
+    }
     #particlesCanvas { pointer-events: none; }
     label { display: block; margin-top: 20px; }
     input, textarea {
@@ -19,7 +27,17 @@
       color: #eee;
     }
     input:focus, textarea:focus { box-shadow: 0 0 8px #4caf50; border-color: #4caf50; }
-    button { margin-top: 20px; padding: 10px 20px; border-radius: 6px; border: none; background: #4caf50; color: #fff; cursor: pointer; transition: background 0.3s, transform 0.1s; }
+    button {
+      padding: 10px 22px;
+      background: var(--theme-color);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      box-shadow: 0 0 12px #222;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
     button:hover { background: #388e3c; transform: scale(1.05); }
     button:active { background: #2e7031; transform: scale(0.98); }
     .status { margin-top: 20px; opacity: 0; transition: opacity 2s; }
@@ -123,9 +141,6 @@
     </form>
     <button id="closeSettingsBtn" style="margin-top:10px;padding:6px 14px;background:#e73c7e;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">Close</button>
   </div>
-  <div style="position:fixed;top:24px;right:40px;z-index:1000;">
-    <button id="analyticsBtn" style="padding:10px 22px;background:#3949ab;color:#fff;border:none;border-radius:8px;font-weight:bold;box-shadow:0 0 12px #222;cursor:pointer;">Analytics</button>
-  </div>
   <h1>Discord Webhook Sender</h1>
   <div id="analyticsOverlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.92);z-index:2000;align-items:center;justify-content:center;">
     <div style="background:#222;padding:32px 24px;border-radius:18px;box-shadow:0 0 32px 8px #111;max-width:400px;margin:auto;text-align:center;">
@@ -180,8 +195,9 @@
 fetch('/profile', { credentials: 'include' })
   .then(res => res.json())
   .then(profile => {
-    document.getElementById('userName').textContent = profile.username || 'User';
-    document.getElementById('userAvatar').src = profile.avatar || 'https://cdn-icons-png.flaticon.com/512/5968/5968756.png';
+    // Prefer Discord avatar/username if available
+    document.getElementById('userName').textContent = profile.discordUsername || profile.username || 'User';
+    document.getElementById('userAvatar').src = profile.discordAvatar || profile.avatar || 'https://cdn-icons-png.flaticon.com/512/5968/5968756.png';
     document.getElementById('profileAvatar').value = profile.avatar || '';
     if (profile.avatar) {
       document.getElementById('avatarPreview').src = profile.avatar;
@@ -192,9 +208,7 @@ fetch('/profile', { credentials: 'include' })
     const color = profile.color || '#3949ab';
     themeColorInput.value = color;
     document.body.style.setProperty('--theme-color', color);
-    document.querySelectorAll('button').forEach(btn => {
-      btn.style.background = color;
-    });
+    // No need to manually set button backgrounds, CSS variable will handle it
   });
 document.getElementById('settingsIcon').addEventListener('click', () => {
   document.getElementById('settingsPanel').style.display = 'block';
@@ -225,9 +239,6 @@ document.getElementById('profileForm').addEventListener('submit', async function
     });
     document.getElementById('userAvatar').src = avatar || 'https://cdn-icons-png.flaticon.com/512/5968/5968756.png';
     document.body.style.setProperty('--theme-color', color);
-    document.querySelectorAll('button').forEach(btn => {
-      btn.style.background = color;
-    });
     document.getElementById('settingsPanel').style.display = 'none';
   } catch {
     alert('Failed to update profile.');

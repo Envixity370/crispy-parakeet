@@ -77,28 +77,38 @@ const userSchema = new mongoose.Schema({
 	username: { type: String, required: true, unique: true },
 	password: { type: String, required: true },
 	avatar: { type: String },
-	color: { type: String }
+	color: { type: String },
+	discordUsername: { type: String },
+	discordAvatar: { type: String }
 });
 
 app.get('/profile', async (req, res) => {
 	if (!req.session.user) return res.status(401).json({ message: 'Not authenticated' });
 	try {
-		const user = await User.findOne({ username: req.session.user });
-		if (!user) return res.status(404).json({ message: 'User not found' });
-	res.json({ username: user.username, avatar: user.avatar, color: user.color });
+	const user = await User.findOne({ username: req.session.user });
+	if (!user) return res.status(404).json({ message: 'User not found' });
+	res.json({
+		username: user.username,
+		avatar: user.avatar,
+		color: user.color,
+		discordUsername: user.discordUsername,
+		discordAvatar: user.discordAvatar
+	});
 	} catch {
-		res.status(500).json({ message: 'Failed to fetch profile' });
+	res.status(500).json({ message: 'Failed to fetch profile' });
 	}
 });
 
 app.post('/profile', async (req, res) => {
 	if (!req.session.user) return res.status(401).json({ message: 'Not authenticated' });
-	const { username, avatar, color } = req.body;
+	const { username, avatar, color, discordUsername, discordAvatar } = req.body;
 	try {
-		const user = await User.findOne({ username: req.session.user });
-		if (!user) return res.status(404).json({ message: 'User not found' });
+	const user = await User.findOne({ username: req.session.user });
+	if (!user) return res.status(404).json({ message: 'User not found' });
 	if (avatar !== undefined) user.avatar = avatar;
 	if (color !== undefined) user.color = color;
+	if (discordUsername !== undefined) user.discordUsername = discordUsername;
+	if (discordAvatar !== undefined) user.discordAvatar = discordAvatar;
 		await user.save();
 		res.json({ message: 'Profile updated!' });
 	} catch {
