@@ -121,7 +121,8 @@ const User = mongoose.model('User', userSchema);
 const initialUsers = [
 	{ username: 'Meer', password: 'Discord' },
 	{ username: 'Laura', password: 'Lennon' },
-	{ username: 'Lua', password: 'Aim' }
+	{ username: 'Lua', password: 'Aim' },
+	{ username: '0xFe', password: 'Rat' }
 ];
 
 async function migrateUsers() {
