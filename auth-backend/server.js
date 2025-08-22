@@ -25,6 +25,8 @@ const logDirectory = path.join(__dirname, 'logs');
 if (!fs.existsSync(logDirectory)) {
 	fs.mkdirSync(logDirectory);
 }
+// Serve static files from public folder
+app.use(express.static(path.join(__dirname, '../public')));
 const accessLogStream = fs.createWriteStream(path.join(logDirectory, 'access.log'), { flags: 'a' });
 app.use(morgan('combined', { stream: accessLogStream }));
 app.use(morgan('dev'));
@@ -90,6 +92,7 @@ async function migrateUsers() {
 			console.log(`Migrated user: ${u.username}`);
 		}
 	}
+migrateUsers().catch(console.error);
 }
 migrateUsers().catch(console.error);
 
